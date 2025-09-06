@@ -21,14 +21,15 @@ public class MyBot : IChessBot
         board = boardPara;
         bestMove = Move.NullMove;
 
-        Search(3, true);
+        Search(3, 0);
 
         return bestMove;
     }
 
-    public int Search(int depth, bool isRoot = false)
+    public int Search(int depth, int ply)
     {
         Move[] moves = board.GetLegalMoves();
+        bool isRoot = ply == 0;
 
         // If we reached a leaf node
         if (depth == 0)
@@ -53,7 +54,7 @@ public class MyBot : IChessBot
         {
             board.MakeMove(move);
             // Go deeper in the tree
-            int evaluation = -Search(depth - 1);
+            int evaluation = -Search(depth - 1, ply + 1);
             board.UndoMove(move);
 
             if (evaluation > bestEvalutation)
