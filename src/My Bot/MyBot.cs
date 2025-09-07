@@ -1,96 +1,91 @@
 ﻿using System;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using ChessChallenge.API;
 
 public class MyBot : IChessBot
 {
-    Random rnd = new Random();
-
-    Move bestMove;
-    Board board;
-
     public const int Infinity = 999999999;
-    const int PawnValue = 100;
-    const int KnightValue = 300;
-    const int BishopValue = 320;
-    const int RookValue = 500;
-    const int QueenValue = 900;
+    public const int PawnScore = 100;
+    public const int KnightScore = 300;
+    public const int BishopScore = 350;
+    public const int RookScore = 500;
+    public const int QueenScore = 900;
 
-    public Move Think(Board boardPara, Timer timer)
+    public Move Think(Board board, Timer timer)
     {
-        board = boardPara;
-        bestMove = Move.NullMove;
-
-        Search(3, 0);
-
+        Move bestMove;
+        Search(5, Infinity, Infinity, out bestMove, board);
         return bestMove;
     }
 
-    public int Search(int depth, int ply)
+    public int Search(int depth, int alpha, int beta, out Move bestMove, Board board)
     {
-        Move[] moves = board.GetLegalMoves();
-        bool isRoot = ply == 0;
+        bestMove = Move.NullMove;
 
         // If we reached a leaf node
-        if (depth == 0)
-        {
-            return Evaluate();
-        }
+        if (depth == 0) return Evaluate(board);
 
-        // If no legal moves
+        Move[] moves = board.GetLegalMoves();
+
+        // Check for checkmate or stalemate
         if (moves.Count() == 0)
         {
             if (board.IsInCheck())
             {
-                return -Infinity;
+                return -Infinity + depth; // To prefer shorted checkmates
             }
-            // Stalemate
             return 0;
         }
-
-        int bestEvalutation = -Infinity;
 
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            // Go deeper in the tree
-            int evaluation = -Search(depth - 1, ply + 1);
+            int score = -Search(depth - 1, -beta, -alpha, out _, board); // Ignore out in recursion
             board.UndoMove(move);
 
-            if (evaluation > bestEvalutation)
+            if (score >= beta)
             {
-                bestEvalutation = evaluation;
-                // This will return the best move in all the tree, which can be illegal 
-                // move or a totally bad one in the current position. So only record 
-                // bestEvalution if is in root node
-                if (isRoot) bestMove = move;
+                bestMove = move;
+                return beta;
+            }
+            else if (score > alpha)
+            {
+                alpha = score;
+                bestMove = move;
             }
         }
 
-        return bestEvalutation;
+        return alpha;
     }
 
-    public int Evaluate()
+    public int Evaluate(Board board)
     {
-        int whiteEval = CountMaterial(ChessChallenge.Chess.Board.WhiteIndex);
-        int blackEval = CountMaterial(ChessChallenge.Chess.Board.BlackIndex);
+        int score = 0;
 
-        int evaluation = whiteEval - blackEval;
-        // We could leave it like this, but they we would not know if this is for black or white
-        int perspective = board.IsWhiteToMove ? 1 : -1;
+        score += CountMaterial(board);
 
-        return evaluation * perspective;
+        return score;
     }
 
-    public int CountMaterial(int colorIndex)
+    int CountMaterial(Board board)
     {
-        int material = 0;
-        bool isWhite = colorIndex == ChessChallenge.Chess.Board.WhiteIndex ? true : false;
-        material += board.GetPieceList(PieceType.Pawn, isWhite).Count * PawnValue;
-        material += board.GetPieceList(PieceType.Knight, isWhite).Count * KnightValue;
-        material += board.GetPieceList(PieceType.Bishop, isWhite).Count * BishopValue;
-        material += board.GetPieceList(PieceType.Rook, isWhite).Count * RookValue;
-        material += board.GetPieceList(PieceType.Queen, isWhite).Count * QueenValue;
-        return material;
+        int whiteScore = 0;
+        int blackScore = 0;
+
+        whiteScore += board.GetPieceList(PieceType.Pawn, true).Count() * PawnScore;
+        whiteScore += board.GetPieceList(PieceType.Knight, true).Count() * KnightScore;
+        whiteScore += board.GetPieceList(PieceType.Bishop, true).Count() * BishopScore;
+        whiteScore += board.GetPieceList(PieceType.Rook, true).Count() * RookScore;
+        whiteScore += board.GetPieceList(PieceType.Queen, true).Count() * QueenScore;
+
+        blackScore += board.GetPieceList(PieceType.Pawn, false).Count() * PawnScore;
+        blackScore += board.GetPieceList(PieceType.Knight, false).Count() * KnightScore;
+        blackScore += board.GetPieceList(PieceType.Bishop, false).Count() * BishopScore;
+        blackScore += board.GetPieceList(PieceType.Rook, false).Count() * RookScore;
+        blackScore += board.GetPieceList(PieceType.Queen, false).Count() * QueenScore;
+
+        return (whiteScore - blackScore) * (board.IsWhiteToMove ? 1 : -1);
     }
 }
